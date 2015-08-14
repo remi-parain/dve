@@ -2,7 +2,7 @@
 
 This is a small script to do distributed, high quality video encoding.
 
-The script: 
+The script:
 
 - breaks input video into chunks.
 - distributes chunks to different servers via SSH.
@@ -21,27 +21,25 @@ to encode with:
 
     dve -l host1,host2,host3 media/test.mp4
 
-If you're using a statically linked ffmpeg binary (recommended), then you'll also
-want to specify the path to that binary:
-
-    dve -e ~/bin/ffmpeg -l host1,host2,host3 media/test.mp4
-
 After the encoding is completed and the chunks stitched back together, you
-should end up with an output file named "test.mp4_new.mkv" in your current working
-directory. You can adjust output naming, but note that the output container format
-will currently always be mkv:
+should end up with an output file named something like "original_new.mkv" in
+your current working directory. You can adjust output naming, but note that the
+output container format will currently always be mkv:
 
     dve -s .encoded.mkv -e ~/bin/ffmpeg -l host1,host2,host3 media/test.mp4
 
-dve automatically copies the local ffmpeg to remote systems for encoding, but this
-won't work if you want to mix architectures / OSes. If you ensure
-there's a valid ffmpeg install in the $PATH on each remote system, you can
-disable copying over the local encoder:
+Encoding currently breaks input videos into 1m (60s) chunks. This should give
+reasonable parallelism across a reasonable number of hosts. If you have
+many hosts you may need to adjust this down using -t. If you have a small number
+of hosts and a long video, you may wish to bump this up to encode larger chunks
+and get marginally better compression. Values larger than 300 (15m) are
+probably a waste of time.
 
-    dve -d -l win1,win2,lin1,lin2 media/test.mp4
-
-This allows you to mix Windows/cygwin and Linux hosts on the same
-encoding job.
+Since the ffmpeg situation in Ubuntu has been resolved, dve no longer
+tries to copy over your local copy of ffmpeg for encoding, which greatly
+simplifies the script logic. This means you need to have an ffmpeg binary on
+every system used for encoding, and if you specify a custom path, that custom
+path should be the same on every system.
 
 ## Benchmarks
 
@@ -53,7 +51,7 @@ clip, 3:47 in length.
 
 ```bash
 $ time nice -n 10 ./ffmpeg -y -v error -stats -i test.mp4 -c:v libx264 -crf 20.0 -preset medium -c:a libvorbis -aq 5 -f matroska test.mkv
-frame= 5459 fps=7.4 q=-1.0 Lsize=  530036kB time=00:03:47.43 bitrate=19091.2kbits/s    
+frame= 5459 fps=7.4 q=-1.0 Lsize=  530036kB time=00:03:47.43 bitrate=19091.2kbits/s
 real    12m17.177s
 user    182m57.340s
 sys     0m36.240s
@@ -115,30 +113,12 @@ setup key based authentication to all your remote hosts.
 
 The following need to be installed on the host running this script:
 
-- [ffmpeg](http://johnvansickle.com/ffmpeg/)
+- [ffmpeg](https://www.ffmpeg.org/download.html)
 - [GNU parallel](https://www.gnu.org/software/parallel/)
 
-It will automatically copy the encoder binary to the target systems and run
-it there, but you will need to make sure any required shared libraries are installed
-on the target system.
-
-It's recommended that you use the latest ffmpeg statically linked binaries (above),
-which will also improve your chances of transcoding new / strange video formats.
-
-### bash
-
-If you're using the statically linked ffmpeg binaries in ~/bin,
-you'll need to ensure bash adds ~/bin to your $PATH for non-interactive shells.
-Including the following at the top of your ~/.bashrc should be sufficient:
-
-```bash
-# User dependent .bashrc file
-
-# Set PATH so it includes user's private bin if it exists
-if [ -d "${HOME}/bin" ] ; then
-  PATH="${HOME}/bin:${PATH}"
-fi
-```
+It's recommended that you use recent (>= 2.5.x) versions of ffmpeg to ensure
+they have all the required functionality for splitting and combining the
+video chunks.
 
 ### Windows
 
@@ -161,29 +141,10 @@ You'll also need to do the following if you want to use the host to render with:
 
 ## ⚠ Known Issues
 
-### chunk sizing
-
-Sometimes the last chunk to be split out will be too small to be properly encoded,
-and this will cause the whole encode to fail when the pieces are joined at the end
-of the job.
-
-Currently the only solution is to adjust the -m and -c options so that the final
-chunk of the file is reasonably large.
-
-### ffmpeg / libav
-Ubuntu ships the libav fork version ffmpeg wrapper instead of the actual ffmpeg
-release. This version is missing many necessary features, including the
-[concat demuxer](https://www.ffmpeg.org/faq.html#How-can-I-concatenate-video-files_003f)
-used to stitch encoded chunks back together.
-
-For now, you should download and use the statically linked ffmpeg
-binaries listed above.
-
-For more background about this fork, see:
-[The FFmpeg/Libav situation](http://blog.pkh.me/p/13-the-ffmpeg-libav-situation.html)
+See the [GitHub issues page](https://github.com/nergdron/dve/issues)
 
 ## License
-dve is copyright 2013 by Graeme Humphries <graeme@sudo.ca>.
+dve is copyright 2013-2015 by Graeme Nordgren <graeme@sudo.ca>.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
