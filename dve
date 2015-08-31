@@ -1,13 +1,19 @@
 #!/bin/bash
 
+set -e
+
+# defaults for all configuration values
 ENC="ffmpeg"
-ENCPATH=""
 OPTS="-c:v libx265 -preset fast -x265-params crf=24 -c:a libvorbis -aq 5 -c:s copy"
 SUFFIX="_new.mkv"
-SERVERS="localhost"
+SERVERS=":"
 LEN=60
 OUTDIR="$HOME/.dve"
 VERBOSE="error"
+# override defaults in a ~/.dverc file
+if [ -f ~/.dverc ]; then
+  source ~/.dverc
+fi
 
 function usage() {
     cat << EOF
@@ -18,7 +24,6 @@ multiple hosts.
 
 OPTIONS:
     -h  this help message.
-    -e  ffmpeg binary to use. (default=${ENC})
     -l  comma separated list of hosts to use to encode. (default=${SERVERS})
     -t  rough length of individual video chunks, in seconds. (default=${MINLEN})
     -o  encoding options. (default=${OPTS})
@@ -29,35 +34,19 @@ EOF
 
 # check all required helper utils
 function checkpaths() {
-    for cmd in parallel; do
+    for cmd in parallel ffmpeg; do
         if ! CMD=`which $cmd`; then
-            echo "$cmd not found."
+            echo "$cmd not found in local path."
             exit 1
         fi
     done
-    # check as absolute path first
-    if [ -x "$ENC" ]; then
-        ENCPATH="$ENC"
-    else
-        # then check for something in $PATH
-        ENCPATH="`which $ENC`"
-        if ! [ -x "$ENCPATH" ]; then
-            echo "$ENC not found."
-            exit 1
-        fi
-    fi
 }
 
-checkpaths
-
-while getopts “he:l:t:o:s:v” OPTION; do
+while getopts “hl:t:o:s:v” OPTION; do
     case $OPTION in
     h)
     usage
     exit 1
-    ;;
-    e)
-    ENC="$OPTARG"
     ;;
     l)
     SERVERS="$OPTARG"
@@ -87,13 +76,19 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 
+checkpaths
+
 if ! mkdir -p ${OUTDIR}; then
     echo "Couldn't create temp chunk output dir ${OUTDIR}."
     exit 1
 fi
 
 echo "Creating chunks to encode"
-$ENCPATH -i "$1"  -map 0 -codec copy -f segment -segment_time $LEN -segment_format matroska -v ${VERBOSE} "${OUTDIR}/chunk-%03d.orig"
+if [[ "$1" == *".AVI" || "$1" == *".avi" ]]; then
+       $ENC -fflags +genpts -i "$1"  -map 0 -codec copy -f segment -segment_time $LEN -segment_format matroska -v ${VERBOSE} "${OUTDIR}/chunk-%03d.orig"
+else
+       $ENC -i "$1" -map 0 -codec copy -f segment -segment_time $LEN -segment_format matroska -v ${VERBOSE} "${OUTDIR}/chunk-%03d.orig"
+fi
 
 CWD=`pwd`
 cd "$OUTDIR"
@@ -105,7 +100,7 @@ PAR_OPTS="$PAR_OPTS --workdir ... --transfer --return {.}.enc"
 ENC_OPTS="-y -v ${VERBOSE} -i {} ${OPTS} -f matroska {.}.enc"
 
 echo "parallel ${PAR_OPTS} ${ENCPATH} ${ENC_OPTS} ::: chunk-*.orig"
-parallel ${PAR_OPTS} ${ENCPATH} ${ENC_OPTS} ::: chunk-*.orig
+parallel ${PAR_OPTS} ${ENC} ${ENC_OPTS} ::: chunk-*.orig
 
 echo "Combining chunks into final video file"
 echo "ffconcat version 1.0" > concat.txt
@@ -114,7 +109,7 @@ for f in `ls chunk-*.enc | sort`; do
 done
 BASE=`basename "$1"`
 OUTFILE="${CWD}"/"${BASE%.*}${SUFFIX}"
-${ENCPATH} -y -v ${VERBOSE} -f concat -i concat.txt -f matroska -map 0 -c copy "${OUTFILE}"
+${ENC} -y -v ${VERBOSE} -f concat -i concat.txt -f matroska -map 0 -c copy "${OUTFILE}"
 
 echo "Cleaning up temporary working files"
 rm -f "${OUTDIR}"/*
