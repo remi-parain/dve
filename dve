@@ -1,12 +1,12 @@
-#!/bin/bash
+#!/bin/bash -e
 
 ENC="ffmpeg"
 ENCPATH=""
-OPTS="-c:v libx265 -preset fast -x265-params crf=24 -c:a libvorbis -aq 5 -c:s copy"
+OPTS="-c:v libx264 -preset fast -g 250 -qp 22 -c:a libfdk_aac -ac 1"
 SUFFIX="_new.mkv"
-SERVERS="localhost"
+SERVERS=":,192.168.1.14"
 LEN=60
-OUTDIR="$HOME/.dve"
+OUTDIR="/tmp/.dve" #ram
 VERBOSE="error"
 
 function usage() {
@@ -35,17 +35,8 @@ function checkpaths() {
             exit 1
         fi
     done
-    # check as absolute path first
-    if [ -x "$ENC" ]; then
-        ENCPATH="$ENC"
-    else
-        # then check for something in $PATH
-        ENCPATH="`which $ENC`"
-        if ! [ -x "$ENCPATH" ]; then
-            echo "$ENC not found."
-            exit 1
-        fi
-    fi
+	#FIXME: should not force absolute path on all servers
+	ENCPATH="ffmpeg"
 }
 
 checkpaths
@@ -93,14 +84,22 @@ if ! mkdir -p ${OUTDIR}; then
 fi
 
 echo "Creating chunks to encode"
-$ENCPATH -i "$1"  -map 0 -codec copy -f segment -segment_time $LEN -segment_format matroska -v ${VERBOSE} "${OUTDIR}/chunk-%03d.orig"
+if [[ "$1" == *".AVI" ]]; then
+	$ENCPATH -fflags +genpts -i "$1"  -map 0 -codec copy -f segment -segment_time $LEN -segment_format matroska -v ${VERBOSE} "${OUTDIR}/chunk-%03d.orig"
+else
+	$ENCPATH -i "$1"  -map 0 -codec copy -f segment -segment_time $LEN -segment_format matroska -v ${VERBOSE} "${OUTDIR}/chunk-%03d.orig"
+fi
+
+if [ $? -ne 0 ]; then
+	echo "Error creating chunks "
+	exit
+fi
 
 CWD=`pwd`
 cd "$OUTDIR"
 
 echo "Running parallel encoding jobs"
-PAR_OPTS="--gnu -j 1 -S ${SERVERS} --eta --retries 2 --nice 10"
-#PAR_OPTS="$PAR_OPTS --workdir ... --trc {.}.enc"
+PAR_OPTS="--no-notice --gnu -j 1 -S ${SERVERS} --eta --retries 2 --nice 10"
 PAR_OPTS="$PAR_OPTS --workdir ... --transfer --return {.}.enc"
 ENC_OPTS="-y -v ${VERBOSE} -i {} ${OPTS} -f matroska {.}.enc"
 
