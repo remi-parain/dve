@@ -8,7 +8,7 @@ OPTS="-c:v libx265 -preset fast -x265-params crf=24 -c:a libvorbis -aq 5 -c:s co
 SUFFIX="_new.mkv"
 SERVERS=":"
 LEN=60
-OUTDIR="/tmp/.dve" #ram
+OUTDIR=`mktemp -d`
 VERBOSE="error"
 # override defaults in a ~/.dverc file
 if [ -f ~/.dverc ]; then
