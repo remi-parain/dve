@@ -32,7 +32,7 @@ multiple hosts.
 OPTIONS:
     -h  this help message.
     -l  comma separated list of hosts to use to encode. (default=${SERVERS})
-    -t  rough length of individual video chunks, in seconds. (default=${MINLEN})
+    -t  rough length of individual video chunks, in seconds. (default=${LEN})
     -o  encoding options. (default=${OPTS})
     -s  output file suffix. (default=${SUFFIX})
     -v  verbose job output. (default=false)
