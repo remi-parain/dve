@@ -4,7 +4,10 @@ set -e
 
 # defaults for all configuration values
 ENC="ffmpeg"
-OPTS="-c:v libx265 -preset fast -x265-params crf=24 -c:a libvorbis -aq 5 -c:s copy"
+OPTS="-c:v libx265 -preset fast -x265-params crf=24 -c:a libvorbis -aq 5"
+# This is to split out and copy attachment streams, like subtitles
+# and fonts, so they only get copied once.
+DATA_OPTS="-map 0 -c:s copy -c:t copy -c:d copy -vn -an"
 SUFFIX="_new.mkv"
 SERVERS=":"
 LEN=60
@@ -99,6 +102,11 @@ if [[ "$1" == *".AVI" || "$1" == *".avi" ]]; then
 else
        $ENC -i "$1" -map 0 -codec copy -f segment -segment_time $LEN -segment_format matroska -v ${VERBOSE} "${OUTDIR}/chunk-%03d.orig"
 fi
+echo "Copying file metadata"
+DATA_IN="-i data.enc -map 1"
+${ENC} -y -v ${VERBOSE} -i "$1" ${DATA_OPTS} -f matroska "${OUTDIR}/data.enc" ||
+  DATA_IN=""
+
 cd "$OUTDIR"
 
 echo "Running parallel encoding jobs"
@@ -106,7 +114,7 @@ PAR_OPTS="--no-notice --gnu -j 1 -S ${SERVERS} --eta --retries 2 --nice 10"
 PAR_OPTS="$PAR_OPTS --workdir ... --transfer --return {.}.enc"
 ENC_OPTS="-y -v ${VERBOSE} -i {} ${OPTS} -f matroska {.}.enc"
 
-echo "parallel ${PAR_OPTS} ${ENCPATH} ${ENC_OPTS} ::: chunk-*.orig"
+echo "parallel ${PAR_OPTS} ${ENC} ${ENC_OPTS} ::: chunk-*.orig"
 parallel ${PAR_OPTS} ${ENC} ${ENC_OPTS} ::: chunk-*.orig
 
 echo "Combining chunks into final video file"
@@ -116,4 +124,4 @@ for f in `ls chunk-*.enc | sort`; do
 done
 BASE=`basename "$1"`
 OUTFILE="${CWD}"/"${BASE%.*}${SUFFIX}"
-${ENC} -y -v ${VERBOSE} -f concat -i concat.txt -f matroska -map 0 -c copy "${OUTFILE}"
+${ENC} -y -v ${VERBOSE} -f concat -i concat.txt ${DATA_IN} -map 0 -f matroska -c copy "${OUTFILE}"
