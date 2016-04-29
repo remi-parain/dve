@@ -144,7 +144,7 @@ You'll also need to do the following if you want to use the host to render with:
 See the [GitHub issues page](https://github.com/nergdron/dve/issues)
 
 ## License
-dve is copyright 2013-2015 by Graeme Nordgren <graeme@sudo.ca>.
+dve is copyright 2013-2016 by Tessa Nordgren <tessa@sudo.ca>.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
