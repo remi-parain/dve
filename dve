@@ -4,7 +4,8 @@ set -e
 
 # defaults for all configuration values
 ENC="ffmpeg"
-OPTS="-c:v libx265 -preset fast -x265-params crf=24 -c:a libvorbis -aq 5"
+CRF=26
+OPTS="-c:v libx265 -preset fast -x265-params crf=${CRF}:aq-mode=3 -c:a libvorbis -aq 5"
 # This is to split out and copy attachment streams, like subtitles
 # and fonts, so they only get copied once.
 DATA_OPTS="-map 0 -c:s copy -c:t copy -c:d copy -vn -an"
@@ -20,8 +21,8 @@ fi
 
 function on_finish() {
 	echo "Cleaning up temporary working files"
-	rm -f "${OUTDIR}"/*
-	cd "$CWD"
+  cd "$CWD"
+	rm -rf "${OUTDIR}"/
 	echo "Finished cleaning"
 }
 
@@ -38,6 +39,8 @@ OPTIONS:
     -t  rough length of individual video chunks, in seconds. (default=${LEN})
     -o  encoding options. (default=${OPTS})
     -s  output file suffix. (default=${SUFFIX})
+    -q  video encoding quality, shortcut to use default encoding options with
+        a different CRF. (default=${CRF})
     -v  verbose job output. (default=false)
 EOF
 }
@@ -52,7 +55,7 @@ function checkpaths() {
     done
 }
 
-while getopts “hl:t:o:s:v” OPTION; do
+while getopts “hl:t:o:s:q:v” OPTION; do
     case $OPTION in
     h)
     usage
@@ -63,6 +66,10 @@ while getopts “hl:t:o:s:v” OPTION; do
     ;;
     t)
     LEN="$OPTARG"
+    ;;
+    q)
+    CRF="$OPTARG"
+    OPTS="-c:v libx265 -preset fast -x265-params crf=${CRF}:aq-mode=3 -c:a libvorbis -aq 5"
     ;;
     o)
     OPTS="$OPTARG"
@@ -111,10 +118,9 @@ cd "$OUTDIR"
 
 echo "Running parallel encoding jobs"
 PAR_OPTS="--no-notice --gnu -j 1 -S ${SERVERS} --eta --retries 2 --nice 10"
-PAR_OPTS="$PAR_OPTS --workdir ... --transfer --return {.}.enc"
+PAR_OPTS="${PAR_OPTS} --workdir ... --transfer --return {.}.enc"
 ENC_OPTS="-y -v ${VERBOSE} -i {} ${OPTS} -f matroska {.}.enc"
 
-echo "parallel ${PAR_OPTS} ${ENC} ${ENC_OPTS} ::: chunk-*.orig"
 parallel ${PAR_OPTS} ${ENC} ${ENC_OPTS} ::: chunk-*.orig
 
 echo "Combining chunks into final video file"
