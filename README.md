@@ -26,7 +26,7 @@ should end up with an output file named something like "original_new.mkv" in
 your current working directory. You can adjust output naming, but note that the
 output container format will currently always be mkv:
 
-    dve -s .encoded.mkv -e ~/bin/ffmpeg -l host1,host2,host3 media/test.mp4
+    dve -s .encoded.mkv -l host1,host2,host3 media/test.mp4
 
 Encoding currently breaks input videos into 1m (60s) chunks. This should give
 reasonable parallelism across a reasonable number of hosts. If you have
