@@ -5,7 +5,7 @@ set -e
 # defaults for all configuration values
 ENC="ffmpeg"
 CRF=24
-OPTS="-c:v libx265 -pix_fmt yuv420p10le -preset fast -x265-params crf=${CRF}:aq-mode=3 -c:a libvorbis -aq 5"
+OPTS="-map 0 -c:v libx265 -pix_fmt yuv420p10le -preset fast -x265-params crf=${CRF}:aq-mode=3 -c:a libvorbis -aq 5"
 # This is to split out and copy attachment streams, like subtitles
 # and fonts, so they only get copied once.
 DATA_OPTS="-map 0 -c:s copy -c:t copy -c:d copy -vn -an"
@@ -69,7 +69,7 @@ while getopts “hl:t:o:s:q:v” OPTION; do
     ;;
     q)
     CRF="$OPTARG"
-    OPTS="-c:v libx265 -pix_fmt yuv420p10le -preset fast -x265-params crf=${CRF}:aq-mode=3 -c:a libvorbis -aq 5"
+    OPTS="-map 0 -c:v libx265 -pix_fmt yuv420p10le -preset fast -x265-params crf=${CRF}:aq-mode=3 -c:a libvorbis -aq 5"
     ;;
     o)
     OPTS="$OPTARG"
@@ -105,9 +105,9 @@ fi
 
 echo "Creating chunks to encode"
 if [[ "$1" == *".AVI" || "$1" == *".avi" ]]; then
-       $ENC -fflags +genpts -i "$1"  -map 0 -codec copy -f segment -segment_time $LEN -segment_format matroska -v ${VERBOSE} "${OUTDIR}/chunk-%03d.orig"
+       $ENC -fflags +genpts -i "$1"  -map 0:a -map 0:v -codec copy -f segment -segment_time $LEN -segment_format matroska -v ${VERBOSE} "${OUTDIR}/chunk-%03d.orig"
 else
-       $ENC -i "$1" -map 0 -codec copy -f segment -segment_time $LEN -segment_format matroska -v ${VERBOSE} "${OUTDIR}/chunk-%03d.orig"
+       $ENC -i "$1" -map 0:a -map 0:v -codec copy -f segment -segment_time $LEN -segment_format matroska -v ${VERBOSE} "${OUTDIR}/chunk-%03d.orig"
 fi
 echo "Copying file metadata"
 DATA_IN="-i data.enc -map 1"
