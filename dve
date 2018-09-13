@@ -5,14 +5,15 @@ set -e
 # defaults for all configuration values
 ENC="ffmpeg"
 CRF=24
-OPTS="-map 0 -c:v libx265 -pix_fmt yuv420p10le -preset fast -x265-params crf=${CRF}:aq-mode=3 -c:a libvorbis -aq 5"
+OPTS="-map 0 -c:v av1 -pix_fmt yuv420p -cpu-used 4 -b:v 0 -crf 30 -c:a copy -strict -2 -threads 8 -tile-columns 2"
 # This is to split out and copy attachment streams, like subtitles
 # and fonts, so they only get copied once.
 DATA_OPTS="-map 0 -c:s copy -c:t copy -c:d copy -vn -an"
 SUFFIX="_new.mkv"
 SERVERS=":"
 LEN=300
-OUTDIR=`mktemp -d`
+OUTDIR=`mktemp -d -p /home/thomas/tmp`
+echo "OutDir" ${OUTDIR}
 VERBOSE="error"
 # override defaults in a ~/.dverc file
 if [ -f ~/.dverc ]; then
@@ -107,18 +108,19 @@ echo "Creating chunks to encode"
 if [[ "$1" == *".AVI" || "$1" == *".avi" ]]; then
        $ENC -fflags +genpts -i "$1"  -map 0:a -map 0:v -codec copy -f segment -segment_time $LEN -segment_format matroska -v ${VERBOSE} "${OUTDIR}/chunk-%03d.orig"
 else
-       $ENC -i "$1" -map 0:a -map 0:v -codec copy -f segment -segment_time $LEN -segment_format matroska -v ${VERBOSE} "${OUTDIR}/chunk-%03d.orig"
+       $ENC -i "$1" -map 0:a? -map 0:v -codec copy -f segment -segment_time $LEN -segment_format matroska -v ${VERBOSE} "${OUTDIR}/chunk-%03d.orig"
 fi
-echo "Copying file metadata"
-DATA_IN="-i data.enc -map 1"
-${ENC} -y -v ${VERBOSE} -i "$1" ${DATA_OPTS} -f matroska "${OUTDIR}/data.enc" ||
-  DATA_IN=""
+#echo "Copying file metadata"
+#DATA_IN="-i data.enc -map 1"
+#${ENC} -y -v ${VERBOSE} -i "$1" ${DATA_OPTS} -f matroska "${OUTDIR}/data.enc" ||
+#  DATA_IN=""
 
 cd "$OUTDIR"
 
 echo "Running parallel encoding jobs"
-PAR_OPTS="--no-notice --gnu -j 1 -S ${SERVERS} --eta --retries 2 --nice 10"
-PAR_OPTS="${PAR_OPTS} --workdir ... --transfer --return {.}.enc"
+PAR_OPTS="--no-notice --gnu -j 12
+ --eta --retries 2 --nice 10"
+PAR_OPTS="${PAR_OPTS} --return {.}.enc"
 ENC_OPTS="-y -v ${VERBOSE} -i {} ${OPTS} -f matroska {.}.enc"
 
 parallel ${PAR_OPTS} ${ENC} ${ENC_OPTS} ::: chunk-*.orig
@@ -130,4 +132,4 @@ for f in `ls chunk-*.enc | sort`; do
 done
 BASE=`basename "$1"`
 OUTFILE="${CWD}"/"${BASE%.*}${SUFFIX}"
-${ENC} -y -v ${VERBOSE} -f concat -i concat.txt ${DATA_IN} -map 0 -f matroska -c copy "${OUTFILE}"
+${ENC} -y -v ${VERBOSE} -f concat -i concat.txt -map 0 -f matroska -c copy "${OUTFILE}"
